@@ -1,0 +1,7 @@
+<launch>
+    <node name="agribot_weatherstation" pkg="agribot_weather" type="agribot_weatherstation.py"  output="screen">
+        <param name="com_port" value="/dev/ttyUSB0"/>
+        <param name="baud_rate" value="19200"/>
+        <param name="frequency" value="1"/> 
+    </node>
+</launch>
