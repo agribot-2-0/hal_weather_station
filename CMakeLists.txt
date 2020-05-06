@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
    serial
    std_msgs
    agribot_msgs
+   sensor_msgs
 )
 
 catkin_package(
