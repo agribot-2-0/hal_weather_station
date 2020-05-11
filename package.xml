@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>hal_weatherstation</name>
+  <name>hal_weather_station</name>
   <version>0.1.0</version>
   <description>Weather station for Agribot.</description>
 
