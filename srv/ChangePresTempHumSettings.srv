@@ -1,0 +1,5 @@
+string parameter_selection
+string update_interval
+string pressure_unit
+string temperature_unit
+---

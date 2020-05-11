@@ -8,6 +8,16 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import Temperature, RelativeHumidity, FluidPressure
 from agribot_msgs.msg import AgribotWind, AgribotPrecipitation
 
+from hal_weather_station.srv import (
+    ChangeCommunicationSettings,
+    ChangeSupervisorSettings,
+    ResetPrecipitationIntensity,
+    ChangePrecipitationSettings,
+    ChangeWindSettings,
+    ChangePresTempHumSettings,
+    ResetPrecipitationcounter
+)
+
 import weather_station_commands
 
 SENSORS_PREFIX = "R"
@@ -24,8 +34,9 @@ class AgribotWeatherStation():
         self.wind_speed_pub = None
         self.rain_level_pub = None
         self.hail_level_pub = None
-        self.received = ""
+        self.station_address = 0
         self.create_publishers()
+        self.create_services()
 
     def create_publishers(self):
         self.temperature_pub = rospy.Publisher(
@@ -41,7 +52,37 @@ class AgribotWeatherStation():
         self.hail_level_pub = rospy.Publisher(
             "weather_station/hail_level", AgribotPrecipitation, queue_size=1)
 
-    def open_comport(self, port_name, baud_rate):
+    def create_services(self):
+        rospy.Service(
+            'change_communication_settings',
+            ChangeCommunicationSettings,
+            self.change_communication_settings)
+        rospy.Service(
+            'change_supervisor_settings',
+            ChangeSupervisorSettings,
+            self.change_supervisor_settings)
+        rospy.Service(
+            'change_wind_settings',
+            ChangeWindSettings,
+            self.change_wind_settings)
+        rospy.Service(
+            'change_pres_temp_hum_settings',
+            ChangePresTempHumSettings,
+            self.change_pres_temp_hum_settings)
+        rospy.Service(
+            'change_precipitation_settings',
+            ChangePrecipitationSettings,
+            self.change_precipitation_settings)
+        rospy.Service(
+            'reset_precipitation_counter',
+            ResetPrecipitationcounter,
+            self.reset_precipitation_counter)
+        rospy.Service(
+            'reset_precipitation_intensity',
+            ResetPrecipitationIntensity,
+            self.reset_precipitation_intensity)
+
+    def open_com_port(self, port_name, baud_rate):
         rospy.loginfo("Opening serial port with baud rate %s", str(baud_rate))
         try:
             self.com_port = serial.Serial(port_name, baud_rate, timeout=0)
@@ -55,26 +96,30 @@ class AgribotWeatherStation():
 
     def run(self, rate, station_address):
         ros_rate = rospy.Rate(rate)
+        self.station_address = station_address
+        received = ""
         while not rospy.is_shutdown():
-            self.send_requests(station_address)
+            self.send_requests()
 
             data_received = self.com_port.in_waiting
             if data_received > 0:
-                self.received = self.com_port.read(data_received)
+                received = self.com_port.read(data_received)
 
             try:
-                self.publish_sensors_data()
-                self.display_communication_settings()
+                self.publish_sensors_data(received)
+                self.display_communication_settings(received)
             except IndexError:
                 pass
             except TypeError:
                 pass
+            except ValueError:
+                pass
             ros_rate.sleep()
 
-    def send_requests(self, station_address):
+    def send_requests(self):
         requests = (
-            weather_station_commands.request_communication_settings(station_address),
-            weather_station_commands.request_all_data(station_address)
+            weather_station_commands.request_communication_settings(self.station_address),
+            weather_station_commands.request_all_data(self.station_address)
         )
         for request in requests:
             self.com_port.write(request)
@@ -85,12 +130,14 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         wind_msg.header = header
-        wind_msg.minimum_direction = data["minimum_direction"]
-        wind_msg.average_direction = data["average_direction"]
-        wind_msg.maximum_direction = data["maximum_direction"]
-        wind_msg.minimum_speed = data["minimum_speed"]
-        wind_msg.average_speed = data["average_speed"]
-        wind_msg.maximum_speed = data["maximum_speed"]
+        wind_msg.direction_variance = 3.0 # +- degrees
+        wind_msg.speed_variance = 3 # +- percent
+        wind_msg.minimum_direction = data["minimum_direction"] # degrees
+        wind_msg.average_direction = data["average_direction"] # degrees
+        wind_msg.maximum_direction = data["maximum_direction"] # degrees
+        wind_msg.minimum_speed = data["minimum_speed"] # m/s
+        wind_msg.average_speed = data["average_speed"] # m/s
+        wind_msg.maximum_speed = data["maximum_speed"] # m/s
         self.wind_speed_pub.publish(wind_msg)
 
     def send_rain_message(self, data):
@@ -99,10 +146,10 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         rain_msg.header = header
-        rain_msg.accumulation = data["accumulation"]
-        rain_msg.duration = data["duration"]
-        rain_msg.intensity = data["intensity"]
-        rain_msg.peak_intensity = data["peak_intensity"]
+        rain_msg.accumulation = data["accumulation"] # mm
+        rain_msg.duration = data["duration"] # s
+        rain_msg.intensity = data["intensity"] # mm/h
+        rain_msg.peak_intensity = data["peak_intensity"] # mm/h
         self.rain_level_pub.publish(rain_msg)
 
     def send_hail_message(self, data):
@@ -111,10 +158,10 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         hail_msg.header = header
-        hail_msg.accumulation = data["accumulation"]
-        hail_msg.duration = data["duration"]
-        hail_msg.intensity = data["intensity"]
-        hail_msg.peak_intensity = data["peak_intensity"]
+        hail_msg.accumulation = data["accumulation"] # hits/cm^2
+        hail_msg.duration = data["duration"] # s
+        hail_msg.intensity = data["intensity"] # hits/cm^2/h
+        hail_msg.peak_intensity = data["peak_intensity"] # hits/cm^2/h
         self.hail_level_pub.publish(hail_msg)
 
     def send_temperature_message(self, data):
@@ -123,7 +170,8 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         temperature_msg.header = header
-        temperature_msg.temperature = data["temperature"]
+        temperature_msg.variance = 0.3 # +- Celsius deg
+        temperature_msg.temperature = data["temperature"] # Celsius deg
         self.temperature_pub.publish(temperature_msg)
 
     def send_humidity_message(self, data):
@@ -132,7 +180,8 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         humidity_msg.header = header
-        humidity_msg.relative_humidity = data["humidity"]
+        humidity_msg.variance = 3.0 # +- percent point
+        humidity_msg.relative_humidity = data["humidity"] # percent
         self.humidity_pub.publish(humidity_msg)
 
     def send_pressure_message(self, data):
@@ -141,11 +190,13 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         pressure_msg.header = header
-        pressure_msg.fluid_pressure = data["pressure"]
+        pressure_msg.variance = 0.5 # +- hPa
+        pressure_msg.fluid_pressure = data["pressure"] # hPa
         self.atmospheric_pressure_pub.publish(pressure_msg)
 
-    def display_communication_settings(self):
-        for data in self.received.split("\r\n")[:-1]:
+    def display_communication_settings(self, received):
+        # pylint: disable=no-self-use
+        for data in received.split("\r\n")[:-1]:
             if data[1] == SETTINGS_PREFIX:
                 output = weather_station_commands.parse_communication(data)
                 output_to_print = "Address = " + output["A"] + "\n"
@@ -162,8 +213,8 @@ class AgribotWeatherStation():
                 output_to_print += "Parameter lock = " + output["H"] + "\n"
                 rospy.loginfo("Current communication settings:\n%s", output_to_print)
 
-    def publish_sensors_data(self):
-        for data in self.received.split("\r\n")[:-1]:
+    def publish_sensors_data(self, received):
+        for data in received.split("\r\n")[:-1]:
             if data[1] == SENSORS_PREFIX:
                 output = weather_station_commands.parse_response(data)
                 wind_data = get_wind_data_from_response(output)
@@ -185,13 +236,60 @@ class AgribotWeatherStation():
                 if pressure_data is not None:
                     self.send_pressure_message(pressure_data)
 
-    def change_communication_settings(self, station_address, settings):
+    def change_communication_settings(self, req):
+        # pylint: disable=too-many-branches
+        settings = dict()
+        if req.address == "":
+            settings["address"] = None
+        else:
+            settings["address"] = req.address
+        if req.new_address == "":
+            settings["new_address"] = None
+        else:
+            settings["new_address"] = req.new_address
+        if req.protocol == "":
+            settings["protocol"] = None
+        else:
+            settings["protocol"] = req.protocol
+        if req.interface == "":
+            settings["interface"] = None
+        else:
+            settings["interface"] = req.interface
+        if req.update_interval == "":
+            settings["update_interval"] = None
+        else:
+            settings["update_interval"] = req.update_interval
+        if req.baud == "":
+            settings["baud"] = None
+        else:
+            settings["baud"] = req.baud
+        if req.data_bit == "":
+            settings["data_bit"] = None
+        else:
+            settings["data_bit"] = req.data_bit
+        if req.parity == "":
+            settings["parity"] = None
+        else:
+            settings["parity"] = req.parity
+        if req.stop_bits == "":
+            settings["stop_bits"] = None
+        else:
+            settings["stop_bits"] = req.stop_bits
+        if req.line_delay == "":
+            settings["line_delay"] = None
+        else:
+            settings["line_delay"] = req.line_delay
+        if req.param_lock == "":
+            settings["param_lock"] = None
+        else:
+            settings["param_lock"] = req.param_lock
+
         request = weather_station_commands.change_communication_settings(
-            address=station_address,
+            address=self.station_address,
             new_address=settings.get("new_address"),
             protocol=settings.get("protocol"),
             interface=settings.get("interface"),
-            update_interval=settings.get(" update_interval"),
+            update_interval=settings.get("update_interval"),
             baud=settings.get("baud"),
             data_bits=settings.get("data_bits"),
             parity=settings.get("parity"),
@@ -201,19 +299,69 @@ class AgribotWeatherStation():
         )
         self.com_port.write(request)
 
-    def change_supervisor_settings(self, station_address, settings):
+    def change_supervisor_settings(self, req):
+        # pylint: disable=too-many-branches
+        settings = dict()
+        if req.parameter_selection == "":
+            settings["parameter_selection"] = None
+        else:
+            settings["parameter_selection"] = req.parameter_selection
+        if req.update_interval == "":
+            settings["update_interval"] = None
+        else:
+            settings["update_interval"] = req.update_interval
+        if req.error_messaging == "":
+            settings["error_messaging"] = None
+        else:
+            settings["error_messaging"] = req.error_messaging
+        if req.heating_control == "":
+            settings["heating_control"] = None
+        else:
+            settings["heating_control"] = req.heating_control
+
         request = weather_station_commands.change_supervisor_settings(
-            address=station_address,
+            address=self.station_address,
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             error_messaging=settings.get("error_messaging"),
-            heating_control=settings.get(" heating_control")
+            heating_control=settings.get("heating_control")
         )
         self.com_port.write(request)
 
-    def change_wind_settings(self, station_address, settings):
+    def change_wind_settings(self, req):
+        # pylint: disable=too-many-branches
+        settings = dict()
+        if req.parameter_selection == "":
+            settings["parameter_selection"] = None
+        else:
+            settings["parameter_selection"] = req.parameter_selection
+        if req.update_interval == "":
+            settings["update_interval"] = None
+        else:
+            settings["update_interval"] = req.update_interval
+        if req.averaging_time == "":
+            settings["averaging_time"] = None
+        else:
+            settings["averaging_time"] = req.averaging_time
+        if req.suprema_mode == "":
+            settings["suprema_mode"] = None
+        else:
+            settings["suprema_mode"] = req.suprema_mode
+        if req.speed_unit == "":
+            settings["speed_unit"] = None
+        else:
+            settings["speed_unit"] = req.speed_unit
+        if req.direction_offset == "":
+            settings["direction_offset"] = None
+        else:
+            settings["direction_offset"] = req.direction_offset
+        if req.sampling_rate == "":
+            settings["sampling_rate"] = None
+        else:
+            settings["sampling_rate"] = req.sampling_rate
+
         request = weather_station_commands.change_wind_settings(
-            address=station_address,
+            address=self.station_address,
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             averaging_time=settings.get("averaging_time"),
@@ -224,19 +372,73 @@ class AgribotWeatherStation():
         )
         self.com_port.write(request)
 
-    def change_pres_temp_hum_settings(self, station_address, settings):
+    def change_pres_temp_hum_settings(self, req):
+        # pylint: disable=too-many-branches
+        settings = dict()
+        if req.parameter_selection == "":
+            settings["parameter_selection"] = None
+        else:
+            settings["parameter_selection"] = req.parameter_selection
+        if req.update_interval == "":
+            settings["update_interval"] = None
+        else:
+            settings["update_interval"] = req.update_interval
+        if req.pressure_unit == "":
+            settings["pressure_unit"] = None
+        else:
+            settings["pressure_unit"] = req.pressure_unit
+        if req.temperature_unit == "":
+            settings["temperature_unit"] = None
+        else:
+            settings["temperature_unit"] = req.temperature_unit
+
         request = weather_station_commands.change_pres_temp_hum_settings(
-            address=station_address,
+            address=self.station_address,
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             pressure_unit=settings.get("pressure_unit"),
-            temperature_unit=settings.get(" temperature_unit")
+            temperature_unit=settings.get("temperature_unit")
         )
         self.com_port.write(request)
 
-    def change_precipitation_settings(self, station_address, settings):
+    def change_precipitation_settings(self, req):
+        # pylint: disable=too-many-branches
+        settings = dict()
+        if req.parameter_selection == "":
+            settings["parameter_selection"] = None
+        else:
+            settings["parameter_selection"] = req.parameter_selection
+        if req.update_interval == "":
+            settings["update_interval"] = None
+        else:
+            settings["update_interval"] = req.update_interval
+        if req.precipitation_unit == "":
+            settings["precipitation_unit"] = None
+        else:
+            settings["precipitation_unit"] = req.precipitation_unit
+        if req.hail_unit == "":
+            settings["hail_unit"] = None
+        else:
+            settings["hail_unit"] = req.hail_unit
+        if req.autosend_mode == "":
+            settings["autosend_mode"] = None
+        else:
+            settings["autosend_mode"] = req.autosend_mode
+        if req.reset_mode == "":
+            settings["reset_mode"] = None
+        else:
+            settings["reset_mode"] = req.reset_mode
+        if req.rain_limit == "":
+            settings["rain_limit"] = None
+        else:
+            settings["rain_limit"] = req.rain_limit
+        if req.hail_limit == "":
+            settings["hail_limit"] = None
+        else:
+            settings["hail_limit"] = req.hail_limit
+
         request = weather_station_commands.change_precipitation_settings(
-            address=station_address,
+            address=self.station_address,
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             precipitation_unit=settings.get("precipitation_unit"),
@@ -248,12 +450,12 @@ class AgribotWeatherStation():
         )
         self.com_port.write(request)
 
-    def reset_precipitation_counter(self, station_address):
-        request = weather_station_commands.precipitation_counter_reset(station_address)
+    def reset_precipitation_counter(self):
+        request = weather_station_commands.precipitation_counter_reset(self.station_address)
         self.com_port.write(request)
 
-    def reset_precipitation_intensity(self, station_address):
-        request = weather_station_commands.precipitation_intensity_reset(station_address)
+    def reset_precipitation_intensity(self):
+        request = weather_station_commands.precipitation_intensity_reset(self.station_address)
         self.com_port.write(request)
 
 

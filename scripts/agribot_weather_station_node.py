@@ -19,7 +19,7 @@ if __name__ == '__main__':
         baud = rospy.get_param("~baud_rate", "19200")
         weather_station_address = rospy.get_param("~address", "0")
         weather_station = weather_station_class.AgribotWeatherStation()
-        if weather_station.open_comport(port, baud):
+        if weather_station.open_com_port(port, baud):
             weather_station.run(frequency, weather_station_address)
         else:
             rospy.loginfo("Closing node")

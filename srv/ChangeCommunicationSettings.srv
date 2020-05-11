@@ -1,0 +1,12 @@
+string address
+string new_address
+string protocol
+string interface
+string update_interval
+string baud
+string data_bit
+string parity
+string stop_bits
+string line_delay
+string param_lock
+---

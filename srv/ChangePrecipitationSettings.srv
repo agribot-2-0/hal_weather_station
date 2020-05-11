@@ -1,0 +1,9 @@
+string parameter_selection
+string update_interval
+string precipitation_unit
+string hail_unit
+string autosend_mode
+string reset_mode
+string rain_limit
+string hail_limit
+---

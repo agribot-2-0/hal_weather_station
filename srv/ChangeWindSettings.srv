@@ -1,0 +1,8 @@
+string parameter_selection
+string update_interval
+string averaging_time
+string suprema_mode
+string speed_unit
+string direction_offset
+string sampling_rate
+---
