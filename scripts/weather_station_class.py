@@ -365,7 +365,7 @@ class AgribotWeatherStation():
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             averaging_time=settings.get("averaging_time"),
-            suprema_mode=settings.get(" suprema_mode"),
+            suprema_mode=settings.get("suprema_mode"),
             speed_unit=settings.get("speed_unit"),
             direction_offset=settings.get("direction_offset"),
             sampling_rate=settings.get("sampling_rate")
@@ -442,7 +442,7 @@ class AgribotWeatherStation():
             parameter_selection=settings.get("parameter_selection"),
             update_interval=settings.get("update_interval"),
             precipitation_unit=settings.get("precipitation_unit"),
-            hail_unit=settings.get(" hail_unit"),
+            hail_unit=settings.get("hail_unit"),
             autosend_mode=settings.get("autosend_mode"),
             reset_mode=settings.get("reset_mode"),
             rain_limit=settings.get("rain_limit"),
