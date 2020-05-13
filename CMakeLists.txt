@@ -10,22 +10,6 @@ find_package(catkin REQUIRED COMPONENTS
    message_generation
 )
 
-add_service_files(
-   FILES
-   ChangeCommunicationSettings.srv
-   ChangeSupervisorSettings.srv
-   ResetPrecipitationIntensity.srv
-   ChangePrecipitationSettings.srv
-   ChangeWindSettings.srv
-   ChangePresTempHumSettings.srv
-   ResetPrecipitationcounter.srv
-)
-
-generate_messages(
-   DEPENDENCIES
-   std_msgs
-)
-
 catkin_package(
 
 )

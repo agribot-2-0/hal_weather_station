@@ -8,7 +8,7 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import Temperature, RelativeHumidity, FluidPressure
 from agribot_msgs.msg import AgribotWind, AgribotPrecipitation
 
-from hal_weather_station.srv import (
+from agribot_msgs.srv import (
     ChangeCommunicationSettings,
     ChangeSupervisorSettings,
     ResetPrecipitationIntensity,
