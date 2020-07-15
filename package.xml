@@ -21,4 +21,6 @@
   <run_depend>rospy</run_depend>
   <build_depend>message_generation</build_depend>
   <run_depend>message_runtime</run_depend>
+
+  <build_depend>agribot_msgs</build_depend>
 </package>
