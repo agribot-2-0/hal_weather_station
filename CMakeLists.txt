@@ -18,9 +18,14 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
    
-      ## Mark executable scripts (Python etc.) for installation
-      ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
    scripts/agribot_weather_station_node.py
+   scripts/weather_station_class.py
+   scripts/weather_station_commands.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  PATTERN ".svn" EXCLUDE
 )
