@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
+import socket
 import rospy
 
 import serial.tools.list_ports as list_ports
-import socket
 
 import weather_station_class
 
@@ -43,4 +43,3 @@ if __name__ == '__main__':
             finally:
                 rospy.loginfo('disconnected')
                 socket.close()
-
