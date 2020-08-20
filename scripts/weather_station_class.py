@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
+import socket
 import rospy
-
-import serial
-
 from std_msgs.msg import Header
 from sensor_msgs.msg import Temperature, RelativeHumidity, FluidPressure
 from agribot_msgs.msg import AgribotWind, AgribotPrecipitation
-
 from agribot_msgs.srv import (
     ChangeCommunicationSettings,
     ChangeSupervisorSettings,
@@ -17,17 +14,19 @@ from agribot_msgs.srv import (
     ChangePresTempHumSettings,
     ResetPrecipitationcounter
 )
-
+import serial
 import weather_station_commands
 
 SENSORS_PREFIX = "R"
 SETTINGS_PREFIX = "X"
-
+BUFF_SIZE = 100
 
 class AgribotWeatherStation():
     # pylint: disable=too-many-instance-attributes
+    # pylint: disable=too-many-public-methods
     def __init__(self):
         self.com_port = None
+        self.socket = None
         self.temperature_pub = None
         self.humidity_pub = None
         self.atmospheric_pressure_pub = None
@@ -94,17 +93,38 @@ class AgribotWeatherStation():
             rospy.loginfo("Port %s opened succesfully", port_name)
             return True
 
-    def run(self, rate, station_address):
+    def open_tcp_connection(self, addres):
+        rospy.loginfo("Opening tcp connection, on ip: %s and port: %s",
+                      str(addres[0]), str(addres[1]))
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        except socket.error as msg:
+            rospy.loginfo("Socket creation failed: %s", msg)
+            self.socket = None
+            return False
+        try:
+            self.socket.connect(addres)
+        except socket.error as msg:
+            rospy.loginfo("TCP connection failed: %s", msg)
+            self.socket.close()
+            self.socket = None
+            return False
+        else:
+            rospy.loginfo("TCP connection opened succesfully")
+            return True
+
+    def run(self, rate, station_address=None):
         ros_rate = rospy.Rate(rate)
-        self.station_address = station_address
         received = ""
+        self.station_address = station_address
         while not rospy.is_shutdown():
-            self.send_requests()
-
-            data_received = self.com_port.in_waiting
-            if data_received > 0:
-                received = self.com_port.read(data_received)
-
+            if station_address is None:
+                received = self.socket.recv(BUFF_SIZE)
+            else:
+                self.send_requests()
+                data_received = self.com_port.in_waiting
+                if data_received > 0:
+                    received = self.com_port.read(data_received)
             try:
                 self.publish_sensors_data(received)
                 self.display_communication_settings(received)
@@ -115,6 +135,8 @@ class AgribotWeatherStation():
             except ValueError:
                 pass
             ros_rate.sleep()
+        if station_address is None:
+            self.socket.close()
 
     def send_requests(self):
         requests = (
