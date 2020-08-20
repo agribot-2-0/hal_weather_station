@@ -116,39 +116,27 @@ class AgribotWeatherStation():
     def run(self, rate, station_address=None):
         ros_rate = rospy.Rate(rate)
         received = ""
-        if station_address is None:
-            while not rospy.is_shutdown():
+        self.station_address = station_address
+        while not rospy.is_shutdown():
+            if station_address is None:
                 received = self.socket.recv(BUFF_SIZE)
-                try:
-                    self.publish_sensors_data(received)
-                    self.display_communication_settings(received)
-                except IndexError:
-                    pass
-                except TypeError:
-                    pass
-                except ValueError:
-                    pass
-                ros_rate.sleep()
-            self.socket.close()
-        else:
-            self.station_address = station_address
-            while not rospy.is_shutdown():
+            else:
                 self.send_requests()
-
                 data_received = self.com_port.in_waiting
                 if data_received > 0:
                     received = self.com_port.read(data_received)
-
-                try:
-                    self.publish_sensors_data(received)
-                    self.display_communication_settings(received)
-                except IndexError:
-                    pass
-                except TypeError:
-                    pass
-                except ValueError:
-                    pass
-                ros_rate.sleep()
+            try:
+                self.publish_sensors_data(received)
+                self.display_communication_settings(received)
+            except IndexError:
+                pass
+            except TypeError:
+                pass
+            except ValueError:
+                pass
+            ros_rate.sleep()
+        if station_address is None:
+            self.socket.close()
 
     def send_requests(self):
         requests = (
