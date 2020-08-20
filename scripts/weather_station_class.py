@@ -113,14 +113,12 @@ class AgribotWeatherStation():
             rospy.loginfo("TCP connection opened succesfully")
             return True
 
-    #com
     def run(self, rate, station_address=None):
         ros_rate = rospy.Rate(rate)
         received = ""
         if station_address is None:
             while not rospy.is_shutdown():
                 received = self.socket.recv(BUFF_SIZE)
-                rospy.loginfo("received %s", received)
                 try:
                     self.publish_sensors_data(received)
                     self.display_communication_settings(received)
