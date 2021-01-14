@@ -16,6 +16,9 @@ from agribot_msgs.srv import (
 )
 import serial
 import weather_station_commands
+from agribot_msgs.srv import IoCardOut
+from std_srvs.srv import Empty
+import time
 
 SENSORS_PREFIX = "R"
 SETTINGS_PREFIX = "X"
@@ -53,64 +56,70 @@ class AgribotWeatherStation():
 
     def create_services(self):
         rospy.Service(
-            'change_communication_settings',
+            'weather_station/change_communication_settings',
             ChangeCommunicationSettings,
             self.change_communication_settings)
         rospy.Service(
-            'change_supervisor_settings',
+            'weather_station/change_supervisor_settings',
             ChangeSupervisorSettings,
             self.change_supervisor_settings)
         rospy.Service(
-            'change_wind_settings',
+            'weather_station/change_wind_settings',
             ChangeWindSettings,
             self.change_wind_settings)
         rospy.Service(
-            'change_pres_temp_hum_settings',
+            'weather_station/change_pres_temp_hum_settings',
             ChangePresTempHumSettings,
             self.change_pres_temp_hum_settings)
         rospy.Service(
-            'change_precipitation_settings',
+            'weather_station/change_precipitation_settings',
             ChangePrecipitationSettings,
             self.change_precipitation_settings)
         rospy.Service(
-            'reset_precipitation_counter',
+            'weather_station/reset_precipitation_counter',
             ResetPrecipitationcounter,
             self.reset_precipitation_counter)
         rospy.Service(
-            'reset_precipitation_intensity',
+            'weather_station/reset_precipitation_intensity',
             ResetPrecipitationIntensity,
             self.reset_precipitation_intensity)
+        rospy.Service('weather_station/up',
+            Empty,
+            self.handle_weather_station_up)
+        rospy.Service('weather_station/down',
+            Empty,
+            self.handle_weather_station_down)
 
     def open_com_port(self, port_name, baud_rate):
-        rospy.loginfo("Opening serial port with baud rate %s", str(baud_rate))
+        rospy.loginfo("[WeatherStation] Opening serial port with baud rate %s", str(baud_rate))
         try:
             self.com_port = serial.Serial(port_name, baud_rate, timeout=0)
         except serial.SerialException as ex:
             rospy.logerr(str(ex))
-            rospy.logerr("Couldn't open serial port %s", port_name)
+            rospy.logerr("[WeatherStation] Couldn't open serial port %s", port_name)
             return False
         else:
-            rospy.loginfo("Port %s opened succesfully", port_name)
+            rospy.loginfo("[WeatherStation] Port %s opened succesfully", port_name)
             return True
 
     def open_tcp_connection(self, addres):
-        rospy.loginfo("Opening tcp connection, on ip: %s and port: %s",
+        rospy.loginfo("[WeatherStation] Opening tcp connection, on ip: %s and port: %s",
                       str(addres[0]), str(addres[1]))
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         except socket.error as msg:
-            rospy.loginfo("Socket creation failed: %s", msg)
+            rospy.loginfo("[WeatherStation] Socket creation failed: %s", msg)
             self.socket = None
             return False
         try:
             self.socket.connect(addres)
         except socket.error as msg:
-            rospy.loginfo("TCP connection failed: %s", msg)
+            rospy.loginfo("[WeatherStation] TCP connection failed: %s", msg)
             self.socket.close()
             self.socket = None
             return False
         else:
-            rospy.loginfo("TCP connection opened succesfully")
+            rospy.loginfo("[WeatherStation] TCP connection opened succesfully")
             return True
 
     def run(self, rate, station_address=None):
@@ -233,7 +242,7 @@ class AgribotWeatherStation():
                 output_to_print += "Device name = " + output["N"] + "\n"
                 output_to_print += "Software version = " + output["V"] + "\n"
                 output_to_print += "Parameter lock = " + output["H"] + "\n"
-                rospy.loginfo("Current communication settings:\n%s", output_to_print)
+                rospy.loginfo("[WeatherStation] Current communication settings:\n%s", output_to_print)
 
     def publish_sensors_data(self, received):
         for data in received.split("\r\n")[:-1]:
@@ -479,6 +488,35 @@ class AgribotWeatherStation():
     def reset_precipitation_intensity(self):
         request = weather_station_commands.precipitation_intensity_reset(self.station_address)
         self.com_port.write(request)
+
+    def handle_weather_station_up(self, req):
+        self.handle_io_card_service(moving_direction="up", io_card_port_up=1, io_card_port_down=3)
+        return {}
+
+    def handle_weather_station_down(self, req):
+        self.handle_io_card_service(moving_direction="down", io_card_port_up=1, io_card_port_down=3)
+        return {}
+
+    def handle_io_card_service(self, moving_direction, io_card_port_up, io_card_port_down):
+        moving_time = 180
+        try:
+            rospy.wait_for_service('/io_card/out')
+            up_down_service = rospy.ServiceProxy('/io_card/out', IoCardOut)
+            rospy.logwarn("[WeatherStation] Moving weather station {}".format(moving_direction))
+            if moving_direction == "up":
+                resp1 = up_down_service(io_card_port_down, 0)
+                resp1 = up_down_service(io_card_port_up, 1)
+                time.sleep(moving_time)
+                resp1 = up_down_service(io_card_port_up, 0)
+            if moving_direction == "down":
+                resp1 = up_down_service(io_card_port_up, 0)
+                resp1 = up_down_service(io_card_port_down, 1)
+                time.sleep(moving_time)
+                resp1 = up_down_service(io_card_port_down, 0)
+            rospy.logwarn("[WeatherStation] Moving weather station {} done succesfully".format(moving_direction))
+        except rospy.ServiceException as e:
+            rospy.logerr("[WeatherStation] Service call failed: {}".format(e))
+
 
 
 def get_wind_data_from_response(response):
