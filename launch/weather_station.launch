@@ -5,7 +5,7 @@
         <param name="baud_rate" value="19200"/>
         <param name="frequency" value="1"/>
         <param name="address" value="0"/>
-        <param name="ip_address" value="192.168.1.1"/>
+        <param name="ip_address" value="10.0.1.1"/>
         <param name="port" value="54321"/>
     </node>
 </launch>
