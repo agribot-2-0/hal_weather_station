@@ -501,6 +501,8 @@ class AgribotWeatherStation():
     def handle_io_card_service(self, moving_direction, io_card_port_up,
                                io_card_port_down):
         # pylint: disable=no-self-use
+        # 180s (3min) is a maximum time to move the weather station
+        # from one position (eg. up) to another (eg. down)
         moving_time = 180
         try:
             rospy.wait_for_service('/io_card/out')
