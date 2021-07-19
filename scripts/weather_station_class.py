@@ -219,9 +219,12 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         pressure_msg.header = header
-        pressure_msg.variance = 0.5  # +- hPa
-        pressure_msg.fluid_pressure = data["pressure"]  # hPa
+        pressure_msg.variance = 50  # +- Pa
+        pressure_msg.fluid_pressure = self.hectopascal_to_pascal(data["pressure"])  # Pa
         self.atmospheric_pressure_pub.publish(pressure_msg)
+
+    def hectopascal_to_pascal(self, value):
+        return value * 100.0
 
     def display_communication_settings(self, received):
         # pylint: disable=no-self-use
