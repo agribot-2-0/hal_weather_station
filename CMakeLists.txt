@@ -3,7 +3,6 @@ project(hal_weather_station)
 
 find_package(catkin REQUIRED COMPONENTS
    rospy
-   serial
    std_msgs
    agribot_msgs
    sensor_msgs
