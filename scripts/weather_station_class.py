@@ -21,6 +21,10 @@ SETTINGS_PREFIX = "X"
 BUFF_SIZE = 100
 
 
+def hectopascal_to_pascal(value):
+    return value * 100.0
+
+
 class AgribotWeatherStation():
     # pylint: disable=too-many-instance-attributes
     # pylint: disable=too-many-public-methods
@@ -219,8 +223,8 @@ class AgribotWeatherStation():
         header.stamp = rospy.Time.now()
         header.frame_id = "base_footprint"
         pressure_msg.header = header
-        pressure_msg.variance = 0.5  # +- hPa
-        pressure_msg.fluid_pressure = data["pressure"]  # hPa
+        pressure_msg.variance = 50  # +- Pa
+        pressure_msg.fluid_pressure = hectopascal_to_pascal(data["pressure"])  # Pa
         self.atmospheric_pressure_pub.publish(pressure_msg)
 
     def display_communication_settings(self, received):

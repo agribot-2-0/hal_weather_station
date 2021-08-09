@@ -2,10 +2,9 @@
 
 import rospy
 
-import serial.tools.list_ports as list_ports
+from serial.tools import list_ports
 
 import weather_station_class
-
 
 if __name__ == '__main__':
     try:
